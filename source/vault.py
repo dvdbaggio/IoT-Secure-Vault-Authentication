@@ -1,4 +1,6 @@
 import secrets
+import hmac
+import hashlib
 from config import VAULT_SIZE, KEY_SIZE_BITS
 from utils import xor_bytes
 
@@ -25,3 +27,21 @@ class SecureVault:
         for idx in indices:
             derived_key = xor_bytes(derived_key, self.keys[idx])
         return derived_key
+    
+    def update_vault(self, exchanged_data):
+        """
+        Updates vault after session using HMAC.
+        New Vault = HMAC(Current Vault, Data) XOR Partitions
+        """
+        current_vault_bytes = b''.join(self.keys)
+        # HMAC Key is the data exchanged in the session
+        h = hmac.new(exchanged_data, current_vault_bytes, hashlib.sha256).digest()
+        
+        new_keys = []
+        for i, key in enumerate(self.keys):
+            # Extend hash to match key length and XOR
+            h_extended = (h * (len(key) // len(h) + 1))[:len(key)]
+            new_keys.append(xor_bytes(key, h_extended))
+            
+        self.keys = new_keys
+        print(f"[Vault] Update completed.")
