@@ -2,8 +2,8 @@ import secrets
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 
-from config import BLOCK_SIZE, CHALLENGE_INDICES
-from utils import xor_bytes
+from source.config import BLOCK_SIZE, CHALLENGE_INDICES
+from source.utils import xor_bytes
 
 class IoTEntity:
     """Base class for encryption utilities."""
@@ -151,4 +151,4 @@ class IoTDevice(IoTEntity):
             raise Exception("Device Verification Failed: r2 mismatch")
         
         self.session_key = xor_bytes(self.t1, t2)
-        print(f"[Device] Session established. Key: {self.session_key.hex()[:10]}...")
+        print(f"[Device] Session established. Key: {self.session_key.hex()[:10]}")

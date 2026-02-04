@@ -1,8 +1,8 @@
 import secrets
 import hmac
 import hashlib
-from config import VAULT_SIZE, KEY_SIZE_BITS
-from utils import xor_bytes
+from source.config import VAULT_SIZE, KEY_SIZE_BITS
+from source.utils import xor_bytes
 
 class SecureVault:
     def __init__(self, n=VAULT_SIZE, m_bits=KEY_SIZE_BITS, existing_keys=None):
