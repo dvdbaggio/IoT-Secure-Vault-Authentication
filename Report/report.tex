@@ -1,0 +1,184 @@
+\documentclass[10pt,twocolumn,letterpaper]{article}
+
+\usepackage{times}
+\usepackage{epsfig}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage[table,xcdraw]{xcolor}
+\usepackage{caption}
+\usepackage{makecell}
+\usepackage[T1]{fontenc}
+\usepackage{placeins}
+\usepackage{booktabs}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{geometry}
+
+\geometry{margin=0.75in}
+\setlength{\columnsep}{1cm} 
+
+\definecolor{lightergray}{rgb}{0.9,0.9,0.9}
+\renewcommand{\arraystretch}{1.15}
+\captionsetup[table]{skip=5pt}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstset{
+    language=Python,
+    backgroundcolor=\color{backcolour},
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\scriptsize,
+    breaklines=true,                 
+    frame=single
+}
+
+\usepackage[breaklinks=true,bookmarks=false]{hyperref}
+\date{}
+
+\begin{document}
+
+%%%%%%%%% TITLE
+\title{Implementation of a Vault-Based Mutual Authentication Protocol for IoT Devices}
+
+\author{
+Davide Baggio \\
+Student ID: 2119982 \\
+{\tt\small davide.baggio.1@studenti.unipd.it}
+}
+
+\maketitle
+
+\begin{abstract}
+As Internet of Things (IoT) devices become more and more prevalent, securing their communication channels is critical. This project presents a Python-based implementation of a lightweight mutual authentication protocol designed for resource-constrained environments. The system utilizes a "Secure Vault" architecture: a synchronized storage of secret keys which enable a challenge-response mechanism. This approach ensures mutual authentication and dynamic session key agreement without transmitting long-term secrets. This work validates the protocol's logic and feasibility through a complete software simulation.
+\end{abstract}
+
+\section{Introduction}
+The increased use of Internet of Things (IoT) devices in recent years has led to many more security challenges, especially in the context of authentication of those devices to their server.
+The solution proposed by Shah et al. \cite{8455985} utilizes a Secure Vault which is a collection of secret keys shared between the IoT device and the server. The protocol employs a challenge-response mechanism where the server challenges the device to prove possession of keys at random indices, and vice-versa. This mutual exchange verifies identities and derives a session key for subsequent encrypted communication.
+In this report, it's provided a Python implementation of this authentication protocol, covering secure vault management, the four-step handshake, and the dynamic vault update process.
+The code can be found at this repository \cite{repo}.
+
+\section{Authentication Mechanism}
+This section details the three-way authentication protocol implemented for the communications between IoT devices and server. It relies on a pre-shared "Vault" of random keys and establishing a temporary Session Key ($SK$) through a 4-message handshake.
+
+\subsection{Secure Vaults}
+A secure vault is a protected storage containing $N$ random keys. In this implementation, \texttt{VAULT\_SIZE} defines $N$, and keys are 128-bit blocks.
+\begin{equation}
+    V = \{k_0, k_1, ..., k_{N-1}\}
+\end{equation}
+To prevent replay attacks and ensure forward secrecy, the contents of the secure vault are changed after every successful communication session. This rotation ensures that even if a device is compromised later, previous sessions remain secure.
+The update process utilizes the \textit{HMAC-SHA256} algorithm and consists of three distinct steps:
+
+\begin{enumerate}
+    \item \textbf{HMAC Computation:} A hash $h$ is computed using the data exchanged during the session (e.g., sensor readings) as the cryptographic key, and the entire current secure vault ($V_{current}$) as the message.
+    \begin{equation}
+        h = \text{HMAC}(Session Data, V_{current})
+    \end{equation}
+    The resulting $h$ has a bit-length of $k$ (256 bits for SHA-256).
+
+    \item \textbf{Vault Partitioning:} To apply the update uniformly, the current secure vault is divided into $j$ equal partitions, each of size $k$ bits. If the total size of the vault is not an exact multiple of $k$, the final partition is padded with zeros to ensure alignment.
+
+    \item \textbf{Partition Update via XOR:} Each partition $P_i$ (where $i = 1, \dots, j$) is updated by XORing it with the computed hash digest $h$ to generate the new partition $P'_i$:
+    \begin{equation}
+        P'_i = P_i \oplus h
+    \end{equation}
+\end{enumerate}
+The new vault $V_{new}$ is formed by combining all updated partitions $P'_i$. Both the IoT device and the server perform this operation independently. If their vaults remain synchronized, it serves as a final implicit confirmation of a successful session.
+\subsection{Authentication Process}
+The protocol consists of a total of four messages ($M_1$--$M_4$).
+
+\begin{enumerate}
+    \item \textbf{Connection Request} \\
+    The IoT device initiates the session by sending its ID and a Session ID and it doesn't require encryption.
+    \begin{equation}
+        M_1 = \text{Device ID} \parallel \text{Session ID}
+    \end{equation}
+
+    \item \textbf{Server Challenge} \\
+    The server validates the Device ID by checking its presence in the authorized devices list. It then generates:
+    \begin{itemize}
+        \item A random nonce $r_1$.
+        \item A challenge $C_1$ which is a list of random indices pointing to keys in the vault.
+    \end{itemize}
+    \begin{equation}
+        M_2 = \{ C_1, r_1 \}
+    \end{equation}
+
+    \item \textbf{Device Response \& Challenge} \\
+    The device receives $M_2$ and uses indices $C_1$ to derive key $k_1$ via XORing of the selected keys. It then generates a random nonce $r_2$, a session component $t_1$, and its own challenge indices $C_2$. It encrypts the payload:
+    \begin{equation}
+        M_3 = \text{Enc}(k_1, r_1 \parallel t_1 \parallel \{ C_2, r_2 \})
+    \end{equation}
+    By including $r_1$, the device proves it could derive $k_1$ and thus possesses authorized access to the vault.
+
+    \item \textbf{Server Response} \\
+    The server decrypts $M_3$ using $k_1$, verifies $r_1$ and then derives $k_2$ via XORing of indices $C_2$. After this, it generates a session component $t_2$. The response is encrypted using a key derived from $k_2$ and $t_1$:
+    \begin{equation}
+        M_4 = \text{Enc}(k_2 \oplus t_1, r_1 \parallel t_2)
+    \end{equation}
+
+    \item \textbf{Session Key Agreement} \\
+    Both parties compute the final Session Key:
+    \begin{equation}
+        SK = t_1 \oplus t_2
+    \end{equation}
+\end{enumerate}
+
+\section{System Setup}
+\subsection{Requirements}
+The system was developed using Python3 and the libraries utilized are as follows:
+\begin{itemize}
+    \item \texttt{PyCryptodome}: Provides cryptographic functionalities including AES encryption in ECB mode. 
+    \item \texttt{secrets}: Used as a Cryptographically Secure Pseudo-Random Number Generator (CSPRNG) for nonces ($r1, r2$) and session components ($t1, t2$).
+    \item \texttt{hmac} \& \texttt{hashlib}: Used for the vault update mechanism (SHA-256).
+\end{itemize}
+
+\subsection{Class Definitions}
+The implementation is structured into three primary classes:
+\begin{itemize}
+    \item \texttt{SecureVault}: Manages the storage of keys, the XOR-based key derivation from indices, and the HMAC-based update logic.
+    \item \texttt{IoTEntity}: A base class providing common encryption/decryption methods.
+    \item \texttt{IoTDevice} / \texttt{IoTServer}: Implement the specific state machine logic for generating and processing $M_1$--$M_4$ messages.
+\end{itemize}
+
+\section{Security Analysis}
+The software simulation demonstrates following security properties:
+
+\begin{itemize}
+    \item \textbf{Authentication}: Mutual authentication is achieved because $k_1$ and $k_2$ can only be derived by a party possessing the correct Vault. The exchange of nonces $r_1$ and $r_2$ prevents replay attacks.
+    
+    \item \textbf{Confidentiality}: The components of the session key ($t_1, t_2$) are never sent in plaintext. $t_1$ is encrypted with $k_1$, and $t_2$ is encrypted with $k_2 \oplus t_1$. Even if an attacker captures the traffic, they cannot reconstruct $SK$ without the Vault.
+
+    \item \textbf{Forward Secrecy}: The Vault Update mechanism ensures that if a device is physically compromised and the Vault is dumped, it cannot be used to decrypt past sessions because the keys have rotated.
+\end{itemize}
+The paper by Shah et al. \cite{8455985} also discusses resistance against the following specific attacks:
+\begin{itemize}
+    \item \textbf{Man-in-the-Middle (MITM) Attacks}: The protocol ensures that an attacker cannot hijack the session because all post-authentication messages are authenticated using a session key $t$. This key is derived from random numbers $t_1$ and $t_2$, which are exchanged exclusively via encrypted messages. Since the encryption keys for these messages are part of the secure vault (secretly shared between the server and IoT device), a MITM attacker cannot retrieve $t$ or modify the traffic.
+
+    \item \textbf{Next Password Prediction}: To ensure forward secrecy, the secure vault values change after every session. Under the \textit{Random Oracle Model}, the HMAC function acts as a random oracle that generates a random output based on the previous vault and exchanged data. By XORing this random output with the previous vault values (applying the \textit{One-Time Pad theorem}), the new vault becomes statistically random. This ensures that even if an adversary predicts or retrieves part of the current vault, they cannot predict the values of the next secure vault.
+
+    \item \textbf{Side-Channel Attacks}: Standard single-password systems are vulnerable to side-channel attacks (e.g., power or memory analysis) that retrieve the AES encryption key. In this protocol, the AES key used for the challenge-response ($k_1$ or $k_2$) is a combination of multiple vault keys XORed together. Even if an attacker retrieves the transient AES key via a side channel, it is impossible to reverse the XOR operation to recover the individual keys stored in the vault. Consequently, an attacker cannot clone the IoT device or inject false messages.
+
+    \item \textbf{Denial of Service (DoS)}: The system is designed to prevent resource exhaustion crashes caused by flooding attacks. The architecture ensures that the server does not assign significant resources to a connection request before the authentication phase is complete, making the protocol resilient to DoS attempts.
+\end{itemize}
+
+\section{Conclusion}
+In this project, the vault-based mutual authentication protocol proposed by Shah et al. \cite{8455985} has been successfully implemented and simulated. By leveraging a synchronized Secure Vault of random keys, the system demonstrates how robust security can be achieved in resource-constrained IoT environments without relying on computationally expensive public-key infrastructure.
+\\The software simulation confirmed the correctness of the three-way handshake logic, proving that both the IoT device and the server can mutually verify identities and independently derive an identical session key. Furthermore, the implementation of the HMAC-based vault rotation mechanism ensures forward secrecy, significantly mitigating the risks of dictionary and replay attacks.
+\\This work serves as a practical proof-of-concept for a lightweight, scalable, and dynamic authentication framework suitable for modern IoT ecosystems.
+
+{\small
+    \bibliographystyle{ieeetr}
+    \bibliography{report}
+}
+
+\end{document}

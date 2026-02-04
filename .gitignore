@@ -1,3 +1,10 @@
 .DS_Store
 __pycache__/
 *.py[cod]
+*.aux
+*.bbl
+*.blg
+*.log
+*.fls
+*fdb_latexmk
+*synctex.gz
