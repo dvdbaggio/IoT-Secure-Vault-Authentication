@@ -43,10 +43,27 @@ def run_auth_simulation():
 
     # Final Verification
     if server.session_key == device.session_key:
-        print(f"\nSUCCESS: Mutual Authentication complete.")
-        print(f"Shared Session Key: {server.session_key.hex()[:20]}")
+        print(f"\n* SUCCESS: Mutual Authentication complete.")
+        print(f"* Shared Session Key: {server.session_key.hex()[:20]}")
     else:
-        print("\nFAILURE: Session keys do not match.")
+        print("\n* FAILURE: Session keys do not match.")
+
+    # --- 3. Vault Update Phase ---
+    print("\n--- 3. Vault Update Phase ---")
+    
+    # Mock session data exchanged during the session
+    session_data = b"Temperature: 24.5C | Humidity: 77.7%"
+    print(f"[App] Simulating session data exchange: {session_data}")
+    
+    # Both sides rotate their vaults independently using the same data
+    server.vault.update_vault(session_data)
+    device.vault.update_vault(session_data)
+    
+    # Verify that vaults are still synchronized
+    if server.vault.keys == device.vault.keys:
+        print("\n* SUCCESS: Vaults updated and remain synchronized.")
+    else:
+        print("\n* FAILURE: Vaults de-synchronized after update.")
 
 if __name__ == "__main__":
     run_auth_simulation()
