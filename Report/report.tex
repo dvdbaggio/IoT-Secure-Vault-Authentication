@@ -1,4 +1,4 @@
-\documentclass[10pt,twocolumn,letterpaper]{article}
+\documentclass[11pt,twocolumn,letterpaper]{article}
 
 \usepackage{times}
 \usepackage{epsfig}
@@ -47,11 +47,10 @@
 \begin{document}
 
 %%%%%%%%% TITLE
-\title{Implementation of a Vault-Based Mutual Authentication Protocol for IoT Devices}
+\title{Implementation of a Vault-Based \\Mutual Authentication Protocol for IoT Devices}
 
 \author{
-Davide Baggio \\
-Student ID: 2119982 \\
+Davide Baggio -- 2119982 \\
 {\tt\small davide.baggio.1@studenti.unipd.it}
 }
 
@@ -60,6 +59,22 @@ Student ID: 2119982 \\
 \begin{abstract}
 As Internet of Things (IoT) devices become more and more prevalent, securing their communication channels is critical. This project presents a Python-based implementation of a lightweight mutual authentication protocol designed for resource-constrained environments. The system utilizes a "Secure Vault" architecture: a synchronized storage of secret keys which enable a challenge-response mechanism. This approach ensures mutual authentication and dynamic session key agreement without transmitting long-term secrets. This work validates the protocol's logic and feasibility through a complete software simulation.
 \end{abstract}
+
+\begin{table*}[h]
+    \centering
+    \begin{tabular}{l c l}
+    \toprule
+    \textbf{Parameter} & \textbf{Value} & \textbf{Description} \\
+    \midrule
+    \texttt{VAULT\_SIZE} & 128 & Total keys in the Vault ($N$) \\
+    \texttt{KEY\_SIZE\_BITS} & 128 & Bit-length of each Vault key \\
+    \texttt{CHALLENGE\_INDICES} & 8 & Number of keys per challenge ($|C_1|, |C_2|$) \\
+    \texttt{BLOCK\_SIZE} & 16 & AES block size in bytes (128 bits) \\
+    \bottomrule
+    \end{tabular}
+    \caption{System Configuration Parameters}
+    \label{tab:params}
+\end{table*}
 
 \section{Introduction}
 The increased use of Internet of Things (IoT) devices in recent years has led to many more security challenges, especially in the context of authentication of those devices to their server.
@@ -93,6 +108,7 @@ The update process utilizes the \textit{HMAC-SHA256} algorithm and consists of t
     \end{equation}
 \end{enumerate}
 The new vault $V_{new}$ is formed by combining all updated partitions $P'_i$. Both the IoT device and the server perform this operation independently. If their vaults remain synchronized, it serves as a final implicit confirmation of a successful session.
+
 \subsection{Authentication Process}
 The protocol consists of a total of four messages ($M_1$--$M_4$).
 
@@ -123,7 +139,7 @@ The protocol consists of a total of four messages ($M_1$--$M_4$).
     \item \textbf{Server Response} \\
     The server decrypts $M_3$ using $k_1$, verifies $r_1$ and then derives $k_2$ via XORing of indices $C_2$. After this, it generates a session component $t_2$. The response is encrypted using a key derived from $k_2$ and $t_1$:
     \begin{equation}
-        M_4 = \text{Enc}(k_2 \oplus t_1, r_1 \parallel t_2)
+        M_4 = \text{Enc}(k_2 \oplus t_1, r_2 \parallel t_2)
     \end{equation}
 
     \item \textbf{Session Key Agreement} \\
@@ -149,6 +165,9 @@ The implementation is structured into three primary classes:
     \item \texttt{IoTEntity}: A base class providing common encryption/decryption methods.
     \item \texttt{IoTDevice} / \texttt{IoTServer}: Implement the specific state machine logic for generating and processing $M_1$--$M_4$ messages.
 \end{itemize}
+
+\subsection{Configuration Parameters}
+The security and performance of the simulation are governed by the configuration constants defined in \texttt{config.py}. Table \ref{tab:params} summarizes the parameters used for this implementation.
 
 \section{Security Analysis}
 The software simulation demonstrates following security properties:
